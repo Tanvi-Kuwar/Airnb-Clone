@@ -5,9 +5,8 @@ const Listing = require ("./models/listing.js");
 const path = require("path");
 const methodOverride = require("method-override");
 const ejsMate = require("ejs-mate");
-// const {listingSchema} = require("./schema.js");
-// const Review = require("./models/review.js");
-// const {reviewSchema} = require("./schema.js");
+const Review = require("./models/review.js");
+
 
 app.set("view engine","ejs");
 app.set("views",path.join(__dirname,"views"));
@@ -121,4 +120,31 @@ app.get("/listings/:id",async(req,res)=>{
 
 app.listen(8080,()=>{
     console.log("server is listening to port 8080");
+})
+
+//Reviews
+
+//Post Route
+app.post("/listings/:id/reviews", async(req,res)=>{
+    let listing = await Listing.findById(req.params.id);
+    let newReview = new Review(req.body.review);  //taking data(review[content],review[rating]) on clicking submit button in show.ejs
+
+    listing.reviews.push(newReview);
+
+    await newReview.save();
+    await listing.save();
+
+    console.log("new review saved");
+    //res.send("new review saved");
+
+    res.redirect(`/listings/${listing._id}`);
+})
+
+//Delete Review Route
+app.delete("/listings/:id/reviews/:reviewId",async(req,res)=>{
+    let { id,reviewId } = req.params;
+    await Listing.findByIdAndUpdate(id, {$pull:{reviews: reviewId}});
+    await Review.findByIdAndDelete(reviewId);
+
+    res.redirect(`/listings/${id}`);
 })
