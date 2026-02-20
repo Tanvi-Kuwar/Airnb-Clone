@@ -2,11 +2,14 @@ const express = require("express");
 const app = express();
 const mongoose = require("mongoose");
 const Listing = require ("./models/listing.js");
+const Review = require("./models/review.js");
 const path = require("path");
 const methodOverride = require("method-override");
 const ejsMate = require("ejs-mate");
-const Review = require("./models/review.js");
-
+const wrapAsync = require("./utils/wrapAsync.js");
+const ExpressError = require("./utils/ExpressError.js");
+const {listingSchema} = require("./schema.js");
+const {reviewSchema} = require("./schema.js");
 
 app.set("view engine","ejs");
 app.set("views",path.join(__dirname,"views"));
@@ -32,12 +35,34 @@ app.get("/",(req,res)=>{
     res.send("working root");
 })
 
+const validateListing=(req,res,next)=>{
+    let {error} = listingSchema.validate(req.body);
+    
+    if(error){
+        let errMsg = error.details.map((el)=>el.message).join(",")
+        throw new ExpressError(400,errMsg);
+    }
+    else{
+        next();
+    }
+}
 
+const validateReview=(req,res,next)=>{
+    let {error} = reviewSchema.validate(req.body);
+    
+    if(error){
+        let errMsg = error.details.map((el)=>el.message).join(",")
+        throw new ExpressError(400,errMsg);
+    }
+    else{
+        next();
+    }
+}
 // Index route
-app.get("/listings", async (req, res) => {
+app.get("/listings", wrapAsync(async (req, res) => {
   const allListings = await Listing.find({});
   res.render("listings/index.ejs", { allListings });
-});
+}));
 
 //New route
 app.get("/listings/new",(req,res)=>{
@@ -78,54 +103,54 @@ app.post("/listings",(req,res)=>{
 */
 
 // 2) 
-app.post("/listings",async(req,res,next)=>{
+app.post("/listings",
+    validateListing,
+    wrapAsync(
+    async(req,res,next)=>{
         const newListing = new Listing(req.body.listing);
         await newListing.save();        
         res.redirect("/listings");
-});
+}));
 
 // Edit route
-app.get("/listings/:id/edit",async(req,res)=>{
+app.get("/listings/:id/edit",wrapAsync(async(req,res)=>{
     let {id} = req.params;
     const listing = await Listing.findById(id);
 
     res.render("listings/edit.ejs",{listing});
-})
+}))
 
 // Update route
 app.put("/listings/:id",
-    
-    async(req,res)=>{
+    validateListing,
+    wrapAsync(async(req,res)=>{
     
     let {id} = req.params;
     await Listing.findByIdAndUpdate(id,{...req.body.listing});
     res.redirect(`/listings/${id}`);  // Show route
-})
+}))
 
 //Delete route
-app.delete("/listings/:id",async(req,res)=>{
+app.delete("/listings/:id",wrapAsync(async(req,res)=>{
     let {id} = req.params;
     let deletedListing = await Listing.findByIdAndDelete(id);
     console.log(deletedListing);
     res.redirect("/listings");
-})
+}))
 
 // Show route
-app.get("/listings/:id",async(req,res)=>{
+app.get("/listings/:id",wrapAsync(async(req,res)=>{
     let {id} = req.params;
     const listing = await Listing.findById(id);
     res.render("listings/show.ejs",{listing});
-})
-
-
-app.listen(8080,()=>{
-    console.log("server is listening to port 8080");
-})
+}))
 
 //Reviews
 
 //Post Route
-app.post("/listings/:id/reviews", async(req,res)=>{
+app.post("/listings/:id/reviews", 
+    validateReview,
+    wrapAsync(async(req,res)=>{
     let listing = await Listing.findById(req.params.id);
     let newReview = new Review(req.body.review);  //taking data(review[content],review[rating]) on clicking submit button in show.ejs
 
@@ -138,13 +163,17 @@ app.post("/listings/:id/reviews", async(req,res)=>{
     //res.send("new review saved");
 
     res.redirect(`/listings/${listing._id}`);
-})
+}))
 
 //Delete Review Route
-app.delete("/listings/:id/reviews/:reviewId",async(req,res)=>{
+app.delete("/listings/:id/reviews/:reviewId",wrapAsync(async(req,res)=>{
     let { id,reviewId } = req.params;
     await Listing.findByIdAndUpdate(id, {$pull:{reviews: reviewId}});
     await Review.findByIdAndDelete(reviewId);
 
     res.redirect(`/listings/${id}`);
+}))
+
+app.listen(8080,()=>{
+    console.log("server is listening to port 8080");
 })
