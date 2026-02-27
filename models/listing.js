@@ -29,6 +29,12 @@ const listingSchema = new Schema({
     ]
 });
 
-module.exports = mongoose.model("Listing",listingSchema);
-
-
+// Post Middleware
+// After deleting any listing, its corredsponding reviews should also be deleted from Review model
+listingSchema.post("findOneAndDelete", async(listing)=>{
+    if(listing){
+        await Review.deleteMany({_id: {$in: listing.reviews}});
+    }
+})
+const Listing = mongoose.model("Listing",listingSchema);
+module.exports = Listing;
